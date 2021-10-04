@@ -1,0 +1,58 @@
+version: "3"
+
+volumes:
+    prometheus_data: {}
+    grafana_data: {}
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.30.2@sha256:c3f58c653e91a0a9c1c88e217c545b27a706a72e796fb4c463b2a4677940f12a
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - 127.0.0.1:9090:9090
+    links:
+      - alertmanager:alertmanager
+    restart: always
+
+  alertmanager:
+    image: prom/alertmanager:v0.23.0@sha256:9ab73a421b65b80be072f96a88df756fc5b52a1bc8d983537b8ec5be8b624c5a
+    ports:
+      - 127.0.0.1:9093:9093
+    volumes:
+      - ./alertmanager/:/etc/alertmanager/
+    restart: always
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+
+  # https://grafana.com/docs/installation/docker/#configuration
+  grafana:
+    image: grafana/grafana:8.1.5@sha256:b7dd9cd0e59d107bbf8b62ded1860b888955d902a700e1997b1c9f211bcf8708
+    depends_on:
+      - prometheus
+    ports:
+      - 127.0.0.1:3000:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+    env_file:
+      - ./grafana/config.monitoring
+    restart: always
+
+  blackbox-exporter:
+    privileged: true
+    image: prom/blackbox-exporter:v0.19.0@sha256:94de5897eef1b3c1ba7fbfebb9af366e032c0ff915a52c0066ff2e0c1bcd2e45
+    restart: always
+    command:
+        '--config.file=/config/blackbox.yml'
+    ports:
+        - '127.0.0.1:9115:9115'
+    volumes:
+        - './blackbox-exporter/blackbox.yml:/config/blackbox.yml'
